@@ -1,33 +1,32 @@
 package main
 
 import (
-	"encoding/json"
+	"encoding/xml"
 	"flag"
-	xj "github.com/basgys/goxml2json"
-	log "github.com/sirupsen/logrus"
+	"io/ioutil"
 	"net/http"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
-type Fuel struct {
-	Type         string `json:"-TYPE"`
-	Usage        string `json:"-VAL"`
-	Percent      string `json:"-PCT"`
-	Interconnect string `json:"-IC"`
+type GenFuelType struct {
+	XMLName xml.Name `xml:GENERATION_BY_FUEL_TYPE_TABLE"`
+	Tags    []INST   `xml:"INST"`
 }
 
-type Inst struct {
-	CalculatedTime string `json:"-AT"`
-	TotalUsage     string `json:"-TOTAL"`
-	FuelUsage      []Fuel `json:"FUEL"`
+type INST struct {
+	AT    string `xml:"AT,attr"`
+	Total string `xml:"TOTAL,attr"`
+	Value []FUEL `xml:"FUEL"`
 }
 
-type PowerUsage struct {
-	CurrentUsage Inst `json:"INST"`
-}
-
-type FuelTable struct {
-	FuelTypeTable PowerUsage `json:"GENERATION_BY_FUEL_TYPE_TABLE"`
+type FUEL struct {
+	TYPE  string `xml:"TYPE,attr"`
+	IC    string `xml:"IC,attr"`
+	VAL   string `xml:"VAL,attr"`
+	PCT   string `xml:"PCT,attr"`
+	Value string `xml:",chardata"`
 }
 
 var myClient = &http.Client{Timeout: 3 * time.Second}
@@ -53,23 +52,19 @@ func main() {
 
 		defer resp.Body.Close()
 
-		/*xmlFile, err := ioutil.ReadAll(resp.Body)
+		xmlFile, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			w.Write([]byte("# couldnt read!!"))
+			log.Warnf("Unable to read from API: %s", err.Error())
+			http.Error(w, "Unable to read off API", http.StatusInternalServerError)
 			return
-		}*/
-
-		jsonFile, err := xj.Convert(resp.Body)
-
-		if err != nil {
-			panic(err)
 		}
 
-		var data FuelTable
-		err = json.Unmarshal([]byte(jsonFile.String()), &data)
-
+		var q GenFuelType
+		err = xml.Unmarshal(xmlFile, &q)
 		if err != nil {
-			panic(err)
+			log.Warnf("Unable to parse XML from API: %s", err.Error())
+			http.Error(w, "Unable to parse off API", http.StatusInternalServerError)
+			return
 		}
 
 		prometheus := ""
@@ -77,16 +72,16 @@ func main() {
 		prometheus += "# HELP elexon_uk_energy_use_megawatts UK current power usage\n"
 		prometheus += "# TYPE elexon_uk_energy_use_megawatts gague\n"
 
-		for _, fuel := range data.FuelTypeTable.CurrentUsage.FuelUsage {
-			prometheus += "elexon_uk_energy_use_megawatts{fuel=\"" + fuel.Type + "\"} " + fuel.Usage + "\n"
+		for _, f := range q.Tags[0].Value {
+			prometheus += "elexon_uk_energy_use_megawatts{fuel=\"" + f.TYPE + "\"} " + f.VAL + "\n"
 		}
 
 		prometheus += "\n"
 		prometheus += "# HELP elexon_uk_energy_use_percentage UK current power usage percentage\n"
 		prometheus += "# TYPE elexon_uk_energy_use_percentage gague\n"
 
-		for _, fuel := range data.FuelTypeTable.CurrentUsage.FuelUsage {
-			prometheus += "elexon_uk_energy_use_percentage{fuel=\"" + fuel.Type + "\"} " + fuel.Percent + "\n"
+		for _, f := range q.Tags[0].Value {
+			prometheus += "elexon_uk_energy_use_percentage{fuel=\"" + f.TYPE + "\"} " + f.PCT + "\n"
 		}
 
 		w.Write([]byte(prometheus))
