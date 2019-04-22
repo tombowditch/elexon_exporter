@@ -70,7 +70,7 @@ func main() {
 		prometheus := ""
 
 		prometheus += "# HELP elexon_uk_energy_use_megawatts UK current power usage\n"
-		prometheus += "# TYPE elexon_uk_energy_use_megawatts gague\n"
+		prometheus += "# TYPE elexon_uk_energy_use_megawatts gauge\n"
 
 		for _, f := range q.Tags[0].Value {
 			prometheus += "elexon_uk_energy_use_megawatts{fuel=\"" + f.TYPE + "\"} " + f.VAL + "\n"
@@ -78,7 +78,7 @@ func main() {
 
 		prometheus += "\n"
 		prometheus += "# HELP elexon_uk_energy_use_percentage UK current power usage percentage\n"
-		prometheus += "# TYPE elexon_uk_energy_use_percentage gague\n"
+		prometheus += "# TYPE elexon_uk_energy_use_percentage gauge\n"
 
 		for _, f := range q.Tags[0].Value {
 			prometheus += "elexon_uk_energy_use_percentage{fuel=\"" + f.TYPE + "\"} " + f.PCT + "\n"
@@ -88,6 +88,6 @@ func main() {
 
 	})
 
-	http.ListenAndServe("localhost:9991", nil)
+	http.ListenAndServe(":9991", nil)
 
 }
