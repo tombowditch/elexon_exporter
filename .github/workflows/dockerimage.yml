@@ -1,4 +1,4 @@
-name: Buidl and Publish Docker
+name: Build and Publish Docker
 on: [push]
 jobs:
   build:
